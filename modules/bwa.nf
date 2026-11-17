@@ -1,84 +1,124 @@
 nextflow.enable.types = true
 
+// Everything that differs between aligners is data in this record. The
+// processes read these fields and contain no per-aligner branching.
+record BwaOptions {
+    container: String
+    index_cmd: String
+    mem_cmd: String
+    rg_flag: String
+    ref_flag: String
+    index_marker: String
+}
+
+enum BwaAligner {
+    BWA,
+    BWA_MEM2,
+    BWA_MEM3,
+    BWA_MEM4,
+    BWA_MEME,
+    BWAMETH,
+}
+
+// Pick the options for a known aligner. Callers can also build their own
+// BwaOptions record to use a tool that is not listed here.
+def bwaOptions(aligner: BwaAligner) -> BwaOptions {
+    def all = [(BwaAligner.BWA): record(
+        container: 'community.wave.seqera.io/library/bwa:0.7.19--abc3b25d25d1ccb1',
+        index_cmd: 'bwa index',
+        mem_cmd: 'bwa mem',
+        rg_flag: '-R',
+        ref_flag: '',
+        index_marker: '.bwt',
+    ), (BwaAligner.BWA_MEM2): record(
+        container: 'community.wave.seqera.io/library/bwa-mem2:2.3--2ed086f836954b3a',
+        index_cmd: 'bwa-mem2 index',
+        mem_cmd: 'bwa-mem2 mem',
+        rg_flag: '-R',
+        ref_flag: '',
+        index_marker: '.bwt.2bit.64',
+    ), (BwaAligner.BWA_MEM3): record(
+        container: 'community.wave.seqera.io/library/bwa-mem3:0.17.0--3450d6c4d620ffe3',
+        index_cmd: 'bwa-mem3 index',
+        mem_cmd: 'bwa-mem3 mem',
+        rg_flag: '-R',
+        ref_flag: '',
+        index_marker: '.bwt.2bit.64',
+    ), (BwaAligner.BWA_MEM4): record(
+        container: 'community.wave.seqera.io/library/bwa-mem4:4.4.1--945b5c33469f0b7d',
+        index_cmd: 'bwa-mem4 index',
+        mem_cmd: 'bwa-mem4 mem',
+        rg_flag: '-R',
+        ref_flag: '',
+        index_marker: '.bwt.2bit.64',
+    ), (BwaAligner.BWA_MEME): record(
+        container: 'community.wave.seqera.io/library/bwa-meme:1.0.6--30966d045013b854',
+        index_cmd: 'bwa-meme index',
+        mem_cmd: 'bwa-meme mem',
+        rg_flag: '-R',
+        ref_flag: '',
+        index_marker: '.bwt.2bit.64',
+    ), (BwaAligner.BWAMETH): record(
+        container: 'community.wave.seqera.io/library/bwameth:0.2.10--0e9f5f44844aec75',
+        index_cmd: 'bwameth.py index',
+        mem_cmd: 'bwameth.py',
+        rg_flag: '--read-group',
+        ref_flag: '--reference',
+        index_marker: '.bwameth.c2t.bwt',
+    )]
+    def options = all[aligner]
+    if (!options) {
+        throw new IllegalArgumentException("Unsupported aligner: ${aligner}")
+    }
+    return options
+}
+
 process BWA_INDEX {
-    container bwaContainer(aligner)
+    container options.container
 
     input:
     record(
         id: String,
-        aligner: BwaAligner,
-        fasta: Path
+        fasta: Path,
+        options: BwaOptions
     )
 
     output:
-    record(id: id, aligner: aligner, index: file('index'))
+    record(id: id, options: options, index: file('index'))
 
     script:
-    def is_bwa = aligner == BwaAligner.BWA
-    def is_bwa_mem2 = aligner == BwaAligner.BWA_MEM2
-    def cmd = is_bwa ? 'bwa index' : is_bwa_mem2 ? 'bwa-mem2 index' : 'bwameth.py index'
-    // all three write the index next to the fasta, so build inside the output dir
+    // every tool writes the index next to the fasta, so build inside the output dir
     """
     mkdir index
     cp ${fasta} index/${fasta.name}
     cd index
-    ${cmd} ${fasta.name}
+    ${options.index_cmd} ${fasta.name}
     """
 }
 
 process BWA_MEM {
-    container bwaContainer(aligner)
+    container options.container
 
     input:
     record(
         id: String,
-        aligner: BwaAligner,
         read1: Path,
         read2: Path,
         index: Path,
         fasta_name: String,
+        options: BwaOptions,
         args: String?
     )
 
     output:
-    record(id: id, aligner: aligner, sam: file("${id}.sam"))
+    record(id: id, sam: file("${id}.sam"))
 
     script:
-    def is_bwa = aligner == BwaAligner.BWA
-    def is_bwa_mem2 = aligner == BwaAligner.BWA_MEM2
-    def extra = args ?: ''
     def rg = "@RG\\tID:${id}\\tSM:${id}"
     def ref = "${index}/${fasta_name}"
-    // one index file that only this aligner produces
-    def marker = is_bwa ? '.bwt' : is_bwa_mem2 ? '.bwt.2bit.64' : '.bwameth.c2t.bwt'
-    def align = is_bwa
-        ? "bwa mem -t ${task.cpus} -R '${rg}' ${extra} ${ref} ${read1} ${read2}"
-        : is_bwa_mem2
-            ? "bwa-mem2 mem -t ${task.cpus} -R '${rg}' ${extra} ${ref} ${read1} ${read2}"
-            : "bwameth.py -t ${task.cpus} --read-group '${rg}' ${extra} --reference ${ref} ${read1} ${read2}"
+    def ref_arg = options.ref_flag ? "${options.ref_flag} ${ref}" : ref
     """
-    test -e ${ref}${marker} || { echo "${index} is not a ${aligner} index" >&2; exit 1; }
-    ${align} > ${id}.sam
+    test -e ${ref}${options.index_marker} || { echo "${index} is not an index for ${options.mem_cmd}" >&2; exit 1; }
+    ${options.mem_cmd} -t ${task.cpus} ${options.rg_flag} '${rg}' ${args ?: ''} ${ref_arg} ${read1} ${read2} > ${id}.sam
     """
-}
-
-def bwaContainer(aligner: BwaAligner) -> String {
-    if (aligner == BwaAligner.BWA) {
-        return 'community.wave.seqera.io/library/bwa:0.7.19--abc3b25d25d1ccb1'
-    }
-    if (aligner == BwaAligner.BWA_MEM2) {
-        return 'community.wave.seqera.io/library/bwa-mem2:2.3--2ed086f836954b3a'
-    }
-    if (aligner == BwaAligner.BWAMETH) {
-        return 'community.wave.seqera.io/library/bwameth:0.2.10--0e9f5f44844aec75'
-    }
-    throw new IllegalArgumentException("Unsupported aligner: ${aligner}")
-}
-
-// One module covering several BWA flavours. The `aligner` field of the input
-// record selects the container, CLI and expected index layout.
-enum BwaAligner {
-    BWA,
-    BWA_MEM2,
-    BWAMETH,
 }
