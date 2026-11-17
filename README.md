@@ -5,7 +5,7 @@ One Nextflow module that wraps several BWA flavours (`bwa`, `bwa-mem2`, `bwameth
 Requires Nextflow 26.10 (record types, `nextflow.enable.types = true`) and Docker.
 
 ```bash
-nextflow run .
+nextflow run adamrtalbot/nf-module-overloading
 ```
 
 ## The idea
