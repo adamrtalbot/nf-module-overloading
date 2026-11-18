@@ -64,5 +64,6 @@ After alignment, `COMPARE_SAMS` prints how many primary alignments match `bwa` o
 ## Layout
 
 - `modules/bwa.nf`: `BwaOptions`, the `BwaAligner` enum, `bwaOptions()`, `BWA_INDEX` and `BWA_MEM`
+- `modules/compare_sams.nf`: `COMPARE_SAMS`, which compares each aligner's SAM to a baseline
 - `main.nf`: demo workflow running every aligner on `data/`, then comparing the results with `samtools`, `awk` and `join`
 - `data/`: a 20 kb synthetic reference and 200 read pairs, with substitutions and small indels in about 70% of reads
