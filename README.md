@@ -57,8 +57,13 @@ Because the process only sees a `BwaOptions` record, you can add a new BWA-like 
 
 `bwa-meme` runs with its default index, not the learned index (`-a meme` and `-7`). `bwa-fastalign` is not included: it crashed building an index under amd64 emulation when I tried it.
 
+## Comparing aligners
+
+After alignment, `COMPARE_SAMS` prints how many reads match `bwa` on each field. On the demo data `bwa-mem2`, `bwa-mem4` and `bwa-meme` match `bwa` exactly, `bwa-mem3` differs on a couple of MAPQs, and `bwameth` differs on positions and CIGARs. `bwameth` is built for bisulfite reads, so it is not expected to agree on this data.
+
 ## Layout
 
 - `modules/bwa.nf`: `BwaOptions`, the `BwaAligner` enum, `bwaOptions()`, `BWA_INDEX` and `BWA_MEM`
-- `main.nf`: demo workflow running every aligner on `data/`
-- `data/`: a 20 kb synthetic reference and 200 read pairs
+- `main.nf`: demo workflow running every aligner on `data/`, then comparing the results
+- `bin/compare_sams.py`: compares each aligner's primary alignments to `bwa` by chromosome, position, CIGAR and MAPQ
+- `data/`: a 20 kb synthetic reference and 200 read pairs, with substitutions and small indels in about 70% of reads

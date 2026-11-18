@@ -35,5 +35,22 @@ workflow {
         }
     )
 
-    sams.view { r -> "${r.id}: ${r.sam.name} ${r.sam.countLines()} lines" }
+    // compare every aligner against bwa
+    COMPARE_SAMS(sams.map { r -> r.sam }.collect()).view()
+}
+
+process COMPARE_SAMS {
+    container 'community.wave.seqera.io/library/python:3.12--0321aa0dbba8f4c5'
+
+    input:
+    sams: Bag<Path>
+
+    output:
+    stdout()
+
+    script:
+    // each SAM is named <aligner>.sam, so the file stem is the aligner name
+    """
+    compare_sams.py bwa ${sams.join(' ')}
+    """
 }
