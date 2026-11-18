@@ -59,11 +59,10 @@ Because the process only sees a `BwaOptions` record, you can add a new BWA-like 
 
 ## Comparing aligners
 
-After alignment, `COMPARE_SAMS` prints how many reads match `bwa` on each field. On the demo data `bwa-mem2`, `bwa-mem4` and `bwa-meme` match `bwa` exactly, `bwa-mem3` differs on a couple of MAPQs, and `bwameth` differs on positions and CIGARs. `bwameth` is built for bisulfite reads, so it is not expected to agree on this data.
+After alignment, `COMPARE_SAMS` prints how many primary alignments match `bwa` on chromosome, position, CIGAR and MAPQ. On the demo data `bwa-mem2`, `bwa-mem4` and `bwa-meme` match `bwa` exactly, `bwa-mem3` differs on a couple of MAPQs, and `bwameth` differs on positions and CIGARs. `bwameth` is built for bisulfite reads, so it is not expected to agree on this data.
 
 ## Layout
 
 - `modules/bwa.nf`: `BwaOptions`, the `BwaAligner` enum, `bwaOptions()`, `BWA_INDEX` and `BWA_MEM`
-- `main.nf`: demo workflow running every aligner on `data/`, then comparing the results
-- `bin/compare_sams.py`: compares each aligner's primary alignments to `bwa` by chromosome, position, CIGAR and MAPQ
+- `main.nf`: demo workflow running every aligner on `data/`, then comparing the results with `samtools`, `awk` and `join`
 - `data/`: a 20 kb synthetic reference and 200 read pairs, with substitutions and small indels in about 70% of reads
